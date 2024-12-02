@@ -1,0 +1,96 @@
+#############################################################################################################################################################
+#############################################################################################################################################################
+#install qiime2 according to https://qiime2.org/
+
+#activate qiime2 conda environment
+conda activate qiime2
+
+#input amplicom data
+#PE data
+time qiime tools import --type 'SampleData[PairedEndSequencesWithQuality]' --input-path manifest --output-path paired-end-demux.qza --input-format PairedEndFastqManifestPhred33V2
+#SE data
+#time qiime tools import --type 'SampleData[SequencesWithQuality]' --input-path manifest --output-path single-end-demux.qza --input-format SingleEndFastqManifestPhred33V2
+
+#check sequecing quality via https://view.qiime2.org/ and set the parameters '--p-trim --p-trunc' for next set based on quality
+time qiime demux summarize --i-data paired-end-demux.qza --o-visualization demux.qzv
+
+#run dada2 (time-comsuming, be patient)
+#PE data
+time qiime dada2 denoise-paired --i-demultiplexed-seqs paired-end-demux.qza --p-trim-left-f 0 --p-trim-left-r 0 --p-trunc-len-f 210 --p-trunc-len-r 210 --o-table table.qza --o-representative-sequences rep-seqs.qza --o-denoising-stats denoising-stats.qza --p-n-threads 20
+#SE data
+time qiime dada2 denoise-single --i-demultiplexed-seqs single-end-demux.qza --p-trim-left 0 --p-trunc-len 400 --o-table table.qza --o-representative-sequences rep-seqs.qza --o-denoising-stats denoising-stats.qza --p-n-threads 20
+
+#check denoise status and check valid data remained
+#check qzv via https://view.qiime2.org/
+time qiime metadata tabulate --m-input-file denoising-stats.qza --o-visualization stats-dada2.qzv
+
+#output asv table
+qiime tools export --input-path table.qza --output-path exported-feature-table
+biom convert -i exported-feature-table/feature-table.biom -o exported-feature-table/feature-table.txt --to-tsv
+
+#(optional) asv to deredundant asv (100% otu)
+#In some circumstance, some rep-seqs with 100% similarity have different length. They will all exist in asv-table and rep-seq. This step can address this issue and get redundant asv (100% otu)
+qiime vsearch cluster-features-de-novo --i-table table.qza --i-sequences rep-seqs.qza --p-perc-identity 1 --o-clustered-table table-otu-100.qza --o-clustered-sequences rep-seqs-otu-100.qza
+
+#taxonomy assignment
+#using sklearn (only for well-trained big database)
+#--p-confidence: 0.7 (default)
+time qiime feature-classifier classify-sklearn --i-classifier classifier.qza --i-reads rep-seqs.qza --o-classification taxonomy.qza --p-confidence 0.9
+#using vesarch
+#--p-perc-identity: 0.8 (default)
+#for big database
+qiime feature-classifier classify-consensus-vsearch --i-query rep-seqs.qza --i-reference-reads db_seq.qza --i-reference-taxonomy db_taxo.qza --o-classification taxonomy.qza --o-search-results taxonomy.m6out --p-perc-identity 0.97 --p-threads 20
+#for custumized small database
+#adjusting parameters: --p-perc-identity, --p-query-cov, --p-maxhits
+qiime feature-classifier classify-consensus-vsearch --i-query rep-seqs.qza --i-reference-reads db_seq.qza --i-reference-taxonomy db_taxo.qza --o-classification taxonomy.qza --o-search-results taxonomy.m6out --p-perc-identity 0.5 --p-query-cov 0.5 --p-maxaccepts all --p-maxrejects all --p-maxhits 3 --p-threads 20
+
+#(optional) removing mitochondria and chloroplast 
+#remove asv from table based on taxonomy info
+qiime taxa filter-table --i-table table.qza --i-taxonomy taxonomy.qza --p-exclude mitochondria,chloroplast --o-filtered-table table-no-mitochondria-no-chloroplast.qza
+#keep asv seqs based on asv-table info
+qiime feature-table filter-seqs --i-data rep-seqs.qza --i-table  table-no-mitochondria-no-chloroplast.qza --o-filtered-data rep-seqs-no-mitochondria-no-chloroplast.qza
+
+#taxonomy visulization
+qiime metadata tabulate --m-input-file taxonomy.qza --o-visualization taxonomy.qzv
+qiime taxa barplot --i-table table.qza --i-taxonomy taxonomy.qza --m-metadata-file sample-metadata.tsv --o-visualization taxa-bar-plots.qzv
+
+#(optional) build phylogentic tree
+qiime phylogeny align-to-tree-mafft-fasttree --i-sequences rep-seqs.qza --o-alignment aligned-rep-seqs.qza --o-masked-alignment masked-aligned-rep-seqs.qza --o-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
+#导出有根进化树
+qiime tools export --input-path rooted-tree.qza --output-path exported-tree
+
+#############################################################################################################################################################
+#############################################################################################################################################################
+
+#make a classifier
+#inport sequences
+qiime tools import --type 'FeatureData[Sequence]' --input-path <IN seq.fna> --output-path <OU seq.qza>
+#inport taxonomy
+qiime tools import --type 'FeatureData[Taxonomy]' --input-format HeaderlessTSVTaxonomyFormat --input-path <IN taxo.txt> --output-path <OU taxo.qza>
+#train classifier
+time qiime feature-classifier fit-classifier-naive-bayes --i-reference-reads seq.qza --i-reference-taxonomy taxo.qza --o-classifier classifier.qza
+
+#(optional) extract target region of database based on primer and train classifier
+qiime feature-classifier extract-reads --i-sequences <IN seq.qza> --p-f-primer GGACTACNVGGGTWTCTAAT --p-r-primer GTGYCAGCMGCCGCGGTAA --p-trunc-len 247 --p-min-length 100 --p-max-length 400 --o-reads <OU extracted-seqs.qza>
+
+#asv to otu
+#https://forum.qiime2.org/t/qiime-2-19-q2-vsearch-otus-2019-7/12231
+time qiime vsearch cluster-features-de-novo --i-table table.qza --i-sequences rep-seqs.qza --p-perc-identity 0.97 --o-clustered-table table-otu-97.qza --o-clustered-sequences rep-seqs-otu-97.qza
+
+#############################################################################################################################################################
+#############################################################################################################################################################
+
+#transform data to qza format
+#asv table
+#asv table does not need '# Constructed from biom file\n' header
+biom convert -i feature-table.txt -o feature-table.biom --to-hdf5
+qiime tools import --input-path feature-table.biom --type 'FeatureTable[Frequency]' --input-format BIOMV210Format --output-path table.qza
+
+#rep seq
+qiime tools import --type 'FeatureData[Sequence]' --input-path rep-seq.fna --output-path rep-seqs.qza
+
+#taxonomy
+qiime tools import --type 'FeatureData[Taxonomy]' --input-format TSVTaxonomyFormat --input-path taxonomy.tsv --output-path taxonomy.qza
+
+#############################################################################################################################################################
+#############################################################################################################################################################
