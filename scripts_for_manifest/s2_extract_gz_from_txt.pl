@@ -11,8 +11,7 @@ while (<II>) {
 #	$tar = $&;
 #	s/#=GF AC   //;
 	print "$_\n";
-	}
-	if (m/.fq/) { #<------adjust to get target
+	}elsif(m/.fq/) { #<------adjust to get target
 #	print "$&\n";
 #	$tar = $&;
 #	s/#=GF AC   //;
