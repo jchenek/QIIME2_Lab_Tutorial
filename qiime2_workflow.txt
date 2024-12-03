@@ -48,15 +48,15 @@ qiime feature-classifier classify-consensus-vsearch --i-query rep-seqs.qza --i-r
 #adjusting parameters: --p-perc-identity, --p-query-cov, --p-maxhits
 qiime feature-classifier classify-consensus-vsearch --i-query rep-seqs.qza --i-reference-reads db_seq.qza --i-reference-taxonomy db_taxo.qza --o-classification taxonomy.qza --o-search-results taxonomy.m6out --p-perc-identity 0.5 --p-query-cov 0.5 --p-maxaccepts all --p-maxrejects all --p-maxhits 3 --p-threads 20
 
+#taxonomy visulization
+qiime metadata tabulate --m-input-file taxonomy.qza --o-visualization taxonomy.qzv
+qiime taxa barplot --i-table table.qza --i-taxonomy taxonomy.qza --m-metadata-file sample-metadata.tsv --o-visualization taxa-bar-plots.qzv
+
 #(optional) removing mitochondria and chloroplast 
 #remove asv from table based on taxonomy info
 qiime taxa filter-table --i-table table.qza --i-taxonomy taxonomy.qza --p-exclude mitochondria,chloroplast --o-filtered-table table-no-mitochondria-no-chloroplast.qza
 #keep asv seqs based on asv-table info
 qiime feature-table filter-seqs --i-data rep-seqs.qza --i-table  table-no-mitochondria-no-chloroplast.qza --o-filtered-data rep-seqs-no-mitochondria-no-chloroplast.qza
-
-#taxonomy visulization
-qiime metadata tabulate --m-input-file taxonomy.qza --o-visualization taxonomy.qzv
-qiime taxa barplot --i-table table.qza --i-taxonomy taxonomy.qza --m-metadata-file sample-metadata.tsv --o-visualization taxa-bar-plots.qzv
 
 #(optional) build phylogentic tree
 qiime phylogeny align-to-tree-mafft-fasttree --i-sequences rep-seqs.qza --o-alignment aligned-rep-seqs.qza --o-masked-alignment masked-aligned-rep-seqs.qza --o-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
