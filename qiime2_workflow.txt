@@ -60,13 +60,24 @@ qiime feature-table filter-seqs --i-data rep-seqs.qza --i-table  table-no-mitoch
 
 #(optional) build phylogentic tree
 qiime phylogeny align-to-tree-mafft-fasttree --i-sequences rep-seqs.qza --o-alignment aligned-rep-seqs.qza --o-masked-alignment masked-aligned-rep-seqs.qza --o-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
-#导出有根进化树
+#export tree file
 qiime tools export --input-path rooted-tree.qza --output-path exported-tree
 
 #############################################################################################################################################################
 #############################################################################################################################################################
 
 #make a classifier
+
+#download SILVA seq and taxo file 
+#For classification, use unaligned reference sequences
+#download Silva SSU via: https://www.arb-silva.de/archive/release_138.2/Exports ; download this one: SILVA_138.2_SSURef_tax_silva_trunc.fasta.gz
+#you can check more infomation form https://mothur.org/blog/2024/SILVA-v138_2-reference-files/
+#To make 'FeatureData[Sequence]' seq.fna, run this (scripts are in additional_scripts):
+#(in this step, all 'Us' are converted to 'Ts')
+perl s0_from_SILVA_SSU_to_seq.pl SILVA_138.2_SSURef_tax_silva_trunc.fasta > SILVA_138.2_SSURef_tax_silva_trunc_seq.fa
+#To make 'FeatureData[Taxonomy]' taxo.txt, run this (scripts are in additional_scripts):
+perl s0_from_SILVA_SSU_to_taxo.pl SILVA_138.2_SSURef_tax_silva_trunc.fasta > SILVA_138.2_SSURef_tax_silva_trunc_taxo.txt
+
 #inport sequences
 qiime tools import --type 'FeatureData[Sequence]' --input-path <IN seq.fna> --output-path <OU seq.qza>
 #inport taxonomy
